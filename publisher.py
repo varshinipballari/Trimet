@@ -15,8 +15,7 @@ message_count = 0
 
 today_str = date.today().isoformat()
 folder_path = "/home/varshi/data_engineering/bus_data"
-#filename =os.path.join(folder_path,f"vehicle_data_{today_str}.json")
-filename = os.path.join(folder_path, "vehicle_data_2025-04-17.json")
+filename =os.path.join(folder_path,f"vehicle_data_{today_str}.json")
 
 batch_settings = pubsub_v1.types.BatchSettings(
     max_bytes=1024 * 1024,
