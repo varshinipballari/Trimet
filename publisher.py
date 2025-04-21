@@ -52,6 +52,8 @@ for vehicle_id, records in breadcrumb_records.items():
         futures_list.append(future)
 
         message_count += 1
+        if message_count % 10000 == 0:
+            print(f"Messages published so far: {message_count}")
 
 # Wait for all futures to complete
 for _ in futures.as_completed(futures_list):

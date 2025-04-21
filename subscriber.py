@@ -1,10 +1,10 @@
-from concurrent.futures import TimeoutError
-from google.cloud import pubsub_v1
-import json
-import time
-import os
+import os, json, time
+
+
 from datetime import datetime
 from datetime import date
+from concurrent.futures import TimeoutError
+from google.cloud import pubsub_v1
 
 os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "/home/varshi/credential.json"
 project_id = "dataengineering-trimetproject"
@@ -35,12 +35,6 @@ def callback(message: pubsub_v1.subscriber.message.Message) -> None:
         print(f" Received {messagecount} messages")
 
 
-streaming_pull_future = subscriber.subscribe(
-    subscription_path, callback=callback
-)
-print(f"Subscriber listening on {subscription_path}...")
-
-
 def sub_listen():
     streaming_pull_future = subscriber.subscribe(
         subscription_path, callback=callback
@@ -56,6 +50,7 @@ def sub_listen():
 
 
 while True:
+    start_time = datetime.today().isoformat()
     sub_listen()
     end_time = datetime.today().isoformat()
 
