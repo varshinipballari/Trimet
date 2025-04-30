@@ -8,8 +8,6 @@ os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "/home/varshi/credential.json"
 
 project_id = "dataengineering-trimetproject"
 subscription_id = "Trimetdata-sub"
-timeout = 500  
-
 
 today_str = date.today().isoformat()
 output_filename = f"sub_data_{today_str}.json"
@@ -17,10 +15,6 @@ output_file = open(output_filename, "a")
 
 
 messagecount = 0
-
-
-subscriber = pubsub_v1.SubscriberClient()
-subscription_path = subscriber.subscription_path(project_id, subscription_id)
 
 
 def callback(message: pubsub_v1.subscriber.message.Message) -> None:
@@ -37,6 +31,8 @@ def callback(message: pubsub_v1.subscriber.message.Message) -> None:
 
 
 def sub_listen():
+    subscriber = pubsub_v1.SubscriberClient()
+    subscription_path = subscriber.subscription_path(project_id, subscription_id)   
     streaming_pull_future = subscriber.subscribe(subscription_path, callback=callback)
     print(f"Subscriber listening on {subscription_path}...")
 
@@ -51,17 +47,14 @@ def sub_listen():
 
 
 
-start_time = time.time()
+while True:
+    start_time = time.time()
+    sub_listen()
+    end_time = time.time()
 
-
-sub_listen()
-
-
-end_time = time.time()
-file_size_bytes = os.path.getsize(output_filename)
-file_size_kb = file_size_bytes / 1024
-
-print(f"Total messages received: {messagecount}")
-print(f"Time taken to receive all messages: {end_time - start_time:.2f} seconds")
-print(f"File size: {file_size_kb:.2f} KB")
-print(f"Breadcrumbs in {output_filename}")
+    file_size_bytes = os.path.getsize(output_filename)
+    file_size_kb = file_size_bytes / 1024
+    print(f"Total messages received: {messagecount}")
+    print(f"Time taken to receive all messages: {end_time - start_time:.2f} seconds")
+    print(f"File size: {file_size_kb:.2f} KB")
+    print(f"Breadcrumbs in {output_filename}")
