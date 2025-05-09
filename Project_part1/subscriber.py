@@ -13,7 +13,7 @@ today_str = date.today().isoformat()
 output_filename = f"sub_data_{today_str}.json"
 output_file = open(output_filename, "a")
 
-
+timeout= 500
 messagecount = 0
 
 
