@@ -3,11 +3,13 @@ import json,os,time
 from concurrent import futures
 from google.cloud import pubsub_v1
 import logging
+from dotenv import load_dotenv
 
 # Set up credentials and Pub/Sub config
-os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "/home/varshi/data_engineering/credential.json"
-project_id = "dataengineering-trimetproject"
-topic_id = "Trimetdata"
+load_dotenv(".env")
+google_credentials_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS_PATH")
+project_id = os.getenv("GCP_PROJECT_ID")
+topic_id = os.getenv("GCP_TOPIC_ID")
 
 # Vehicle IDs and API
 vehicle_ids = [2903, 2910, 2912, 2914, 2918, 2919, 2927,
