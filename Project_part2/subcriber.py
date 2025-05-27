@@ -10,10 +10,13 @@ import psycopg2
 import pandas as pd
 from google.cloud import pubsub_v1
 from Gtransformation import Transformation, TripInfoBuilder
+from dotenv import load_dotenv
 
 # Configuration
-os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = os.getenv("GOOGLE_CREDS_PATH")
-
+load_dotenv(".env")
+google_credentials_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS_PATH")
+project_id = os.getenv("GCP_PROJECT_ID")
+subscription_id = os.getenv("GCP_SUBSCRIPTION_ID")
 DB_CONFIG = {
     "host": os.getenv("DB_HOST", "localhost"),
     "port": int(os.getenv("DB_PORT", 5432)),
@@ -124,8 +127,7 @@ def main():
    
 
     # Pub/Sub setup
-    project_id = "dataengineering-trimetproject"
-    subscription_id = "Trimetdata-sub"
+    
     subscriber = pubsub_v1.SubscriberClient()
     subscription_path = subscriber.subscription_path(project_id, subscription_id)
     
