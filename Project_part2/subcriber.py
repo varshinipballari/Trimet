@@ -12,18 +12,20 @@ from google.cloud import pubsub_v1
 from Gtransformation import Transformation, TripInfoBuilder
 
 # Configuration
+os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = os.getenv("GOOGLE_CREDS_PATH")
+
 DB_CONFIG = {
-    "host": "localhost",
-    "port": 5432,
-    "database": "postgres",
-    "user": "postgres",
-    "password": "user"
+    "host": os.getenv("DB_HOST", "localhost"),
+    "port": int(os.getenv("DB_PORT", 5432)),
+    "database": os.getenv("DB_NAME", "postgres"),
+    "user": os.getenv("DB_USER", "postgres"),
+    "password": os.getenv("DB_PASSWORD")
 }
 
 class DatabaseHandler:
     @staticmethod
     def save_data(validated_df: pd.DataFrame, trip_metadata_df: pd.DataFrame):
-        """Save transformed data to PostgreSQL"""
+        """Save transformed data to PostgreSQL using bulk inserts"""
         try:
             connection = psycopg2.connect(**DB_CONFIG)
             cursor = connection.cursor()
@@ -32,20 +34,22 @@ class DatabaseHandler:
             validated_df["tstamp"] = validated_df["timestamp"].dt.strftime('%Y-%m-%d %H:%M:%S')
             breadcrumb_data = validated_df[["tstamp", "latitude", "longitude", "speed", "trip_id"]]
 
-            # Insert trip metadata
-            for _, row in trip_metadata_df.iterrows():
-                cursor.execute(
-                    "INSERT INTO trip (trip_id, route_id, vehicle_id, service_key, direction) "
-                    "VALUES (%s, %s, %s, %s, %s) ON CONFLICT (trip_id) DO NOTHING",
-                    (row['trip_id'], row['route_id'], row['vehicle_id'], row['service_key'], row['direction'])
-                )
+            # Prepare trip metadata for bulk insert
+            trip_metadata_df = trip_metadata_df[["trip_id", "route_id", "vehicle_id", "service_key", "direction"]]
 
-            # Batch insert breadcrumbs
+            if not trip_metadata_df.empty:
+                trip_buffer = StringIO()
+                trip_metadata_df.to_csv(trip_buffer, index=False, header=False, sep='\t')
+                trip_buffer.seek(0)
+
+           
+            # Bulk insert breadcrumb data
             if not breadcrumb_data.empty:
-                buffer = StringIO()
-                breadcrumb_data.to_csv(buffer, index=False, header=False, sep='\t')
-                buffer.seek(0)
-                cursor.copy_from(buffer, 'breadcrumb', null="", columns=(
+                breadcrumb_buffer = StringIO()
+                breadcrumb_data.to_csv(breadcrumb_buffer, index=False, header=False, sep='\t')
+                breadcrumb_buffer.seek(0)
+
+                cursor.copy_from(breadcrumb_buffer, 'breadcrumb', null="", columns=(
                     'tstamp', 'latitude', 'longitude', 'speed', 'trip_id'))
 
             connection.commit()
@@ -57,6 +61,7 @@ class DatabaseHandler:
             if connection:
                 cursor.close()
                 connection.close()
+
 
 class PubSubProcessor:
     def __init__(self):
@@ -102,6 +107,12 @@ class PubSubProcessor:
         except Exception as e:
             logging.error(f"Batch processing failed: {e}")
 
+
+def callback(message,processor, BATCH_SIZE):
+        processor.process_message(message)
+        if len(processor.buffer) >= BATCH_SIZE:
+            processor.process_batch()
+
 def main():
     # Initialize logging
     logging.basicConfig(
@@ -110,8 +121,9 @@ def main():
         format="%(asctime)s - %(levelname)s - %(message)s"
     )
 
+   
+
     # Pub/Sub setup
-    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "/home/varshi/credential.json"
     project_id = "dataengineering-trimetproject"
     subscription_id = "Trimetdata-sub"
     subscriber = pubsub_v1.SubscriberClient()
@@ -121,13 +133,10 @@ def main():
     BATCH_SIZE = 1000
     IDLE_TIMEOUT = 60  # seconds
 
-    def callback(message):
-        processor.process_message(message)
-        if len(processor.buffer) >= BATCH_SIZE:
-            processor.process_batch()
+
 
     try:
-        streaming_pull = subscriber.subscribe(subscription_path, callback=callback)
+        streaming_pull = subscriber.subscribe(subscription_path, callback=lambda msg: callback(msg, processor, BATCH_SIZE))
         logging.info("Subscriber started")
 
         while True:

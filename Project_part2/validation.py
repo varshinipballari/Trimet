@@ -8,7 +8,6 @@ class Validation:
         self.first_op_date: Optional[str] = None
 
     def validate_records(self, record: Dict) -> bool:
-        """Validate a GPS record against all business rules with enhanced assertions"""
         try:
             self._validate_required_fields(record)
             self._gps_validator(record)
@@ -32,69 +31,97 @@ class Validation:
             'GPS_LONGITUDE': ((int, float), "Longitude must be numeric"),
             'METERS': ((int, float), "Odometer must be numeric")
         }
-        
-        missing_fields = [f for f in required_fields if f not in record]
-        if missing_fields:
-            raise AssertionError(f"Missing required fields: {', '.join(missing_fields)}")
-            
+
+        try:
+            missing_fields = [f for f in required_fields if f not in record]
+            if missing_fields:
+                raise AssertionError(f"Missing required fields: {', '.join(missing_fields)}")
+        except AssertionError as e:
+            logging.warning(f"[Required] {e}")
+            raise
+
         for field, (expected_type, error_msg) in required_fields.items():
-            if record[field] is None:
-                raise AssertionError(f"{field} cannot be None")
-            if not isinstance(record[field], expected_type):
-                raise AssertionError(f"{error_msg}. Got {type(record[field])} for {field}")
+            try:
+                if record[field] is None:
+                    raise AssertionError(f"{field} cannot be None")
+                assert isinstance(record[field], expected_type), f"{error_msg}. Got {type(record[field])} for {field}"
+            except AssertionError as e:
+                logging.warning(f"[Required] {e}")
+                raise
 
     def _gps_validator(self, record: Dict):
-        """Enhanced GPS validation with precision checks"""
         lat = record['GPS_LATITUDE']
         lon = record['GPS_LONGITUDE']
-        
-        # Check value ranges
-        if not 45.2 <= lat <= 45.7:
-            raise AssertionError(f"Latitude {lat} outside Portland area (45.2-45.7)")
-        if not -124.0 <= lon <= -122.0:
-            raise AssertionError(f"Longitude {lon} outside Portland area (-124.0 - -122.0)")
-            
-        # Check for obviously wrong coordinates (like 0,0)
-        if abs(lat) < 1 or abs(lon) < 1:
-            raise AssertionError(f"Suspicious coordinates: ({lat}, {lon})")
+
+        try:
+            assert 45.2 <= lat <= 45.7, f"Latitude {lat} outside Portland area (45.2-45.7)"
+        except AssertionError as e:
+            logging.warning(f"[GPS] {e}")
+            raise
+
+        try:
+            assert -124.0 <= lon <= -122.0, f"Longitude {lon} outside Portland area (-124.0 - -122.0)"
+        except AssertionError as e:
+            logging.warning(f"[GPS] {e}")
+            raise
+
+        try:
+            assert abs(lat) >= 1 and abs(lon) >= 1, f"Suspicious coordinates: ({lat}, {lon})"
+        except AssertionError as e:
+            logging.warning(f"[GPS] {e}")
+            raise
 
     def _validate_speed_plausibility(self, record: Dict):
-        """Check if calculated speed is physically possible"""
         if 'SPEED' in record:
-            if record['SPEED'] < 0:
-                raise AssertionError(f"Negative speed detected: {record['SPEED']} m/s")
-            if record['SPEED'] > 45:  # ~100 mph (max plausible bus speed)
-                raise AssertionError(f"Implausible speed: {record['SPEED']} m/s")
-			
+            try:
+                assert record['SPEED'] >= 0, f"Negative speed detected: {record['SPEED']} m/s"
+            except AssertionError as e:
+                logging.warning(f"[Speed] {e}")
+                raise
+
+            try:
+                assert record['SPEED'] <= 45, f"Implausible speed: {record['SPEED']} m/s"
+            except AssertionError as e:
+                logging.warning(f"[Speed] {e}")
+                raise
+
     def _validate_vehicle_data(self, record: Dict):
-        # Vehicle ID validation
-        if record['VEHICLE_ID'] <= 0:
-            raise AssertionError(f"Invalid Vehicle ID {record['VEHICLE_ID']} (must be positive)")
-            
-        # Odometer validation
-        if record['METERS'] < 0:
-            raise AssertionError(f"Negative odometer reading: {record['METERS']} meters")
-        if record['METERS'] > 1_000_000:  # 1,000 km upper limit
-            raise AssertionError(f"Odometer value {record['METERS']} seems excessively high")
-            
+        try:
+            assert record['VEHICLE_ID'] > 0, f"Invalid Vehicle ID {record['VEHICLE_ID']} (must be positive)"
+        except AssertionError as e:
+            logging.warning(f"[Vehicle] {e}")
+            raise
+
+        try:
+            assert record['METERS'] >= 0, f"Negative odometer reading: {record['METERS']} meters"
+        except AssertionError as e:
+            logging.warning(f"[Vehicle] {e}")
+            raise
+
+        try:
+            assert record['METERS'] <= 1_000_000, f"Odometer value {record['METERS']} seems excessively high"
+        except AssertionError as e:
+            logging.warning(f"[Vehicle] {e}")
+            raise
+
     def _check_geographic_jump(self, record: Dict, last_latlon: Optional[tuple] = None):
-        """Rejects extreme spatial jumps suggesting GPS error or spoofing"""
         from geopy.distance import geodesic
         if last_latlon:
-            dist_km = geodesic(last_latlon, (record['GPS_LATITUDE'], record['GPS_LONGITUDE'])).km
-            if dist_km > 5:  # More than 5 km jump within one event = suspect
-                raise AssertionError(f"Unrealistic location jump: {dist_km:.2f} km")
+            try:
+                dist_km = geodesic(last_latlon, (record['GPS_LATITUDE'], record['GPS_LONGITUDE'])).km
+                assert dist_km <= 5, f"Unrealistic location jump: {dist_km:.2f} km"
+            except AssertionError as e:
+                logging.warning(f"[Jump] {e}")
+                raise
 
-	
     def _validate_temporal_data(self, record: Dict):
-        """Validate time-related fields"""
-        # ACT_TIME validation
-        act_time = record['ACT_TIME']
-        if act_time < 0:
-            raise AssertionError(f"Negative ACT_TIME: {act_time}")
+        try:
+            assert record['ACT_TIME'] >= 0, f"Negative ACT_TIME: {record['ACT_TIME']}"
+        except AssertionError as e:
+            logging.warning(f"[Time] {e}")
+            raise
 
     def _duplicates_check(self, record: Dict):
-        """Enhanced duplicate detection with timestamp validation"""
         key = (
             record['VEHICLE_ID'], 
             record['EVENT_NO_TRIP'],
@@ -102,10 +129,12 @@ class Validation:
             record['ACT_TIME'],
             record['METERS']
         )
-        
-        if key in self.processed_combinations:
-            raise AssertionError(f"Duplicate record detected: Vehicle {key[0]}, Trip {key[1]}, "
-                               f"Stop {key[2]}, Time {key[3]}, Odometer {key[4]}")
-        self.processed_combinations.add(key)
 
-    
+        try:
+            assert key not in self.processed_combinations, (
+                f"Duplicate record detected: Vehicle {key[0]}, Trip {key[1]}, Stop {key[2]}, Time {key[3]}, Odometer {key[4]}"
+            )
+            self.processed_combinations.add(key)
+        except AssertionError as e:
+            logging.warning(f"[Duplicate] {e}")
+            raise
