@@ -2,6 +2,7 @@ import pandas as pd
 from datetime import datetime, timedelta
 from typing import List, Dict
 from validation import Validation
+import logging
 
 
 class Transformation:
@@ -24,8 +25,9 @@ class Transformation:
                     "trip_id": entry["EVENT_NO_TRIP"],
                     "meters": entry["METERS"]
                 })
-            except Exception:
-                continue
+            except Exception as e:
+                logging.error(f"Error Transforming{e}")
+
 
         if not processed:
             return pd.DataFrame()

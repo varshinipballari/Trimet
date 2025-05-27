@@ -2,6 +2,7 @@ import urllib.request
 import json,os,time
 from concurrent import futures
 from google.cloud import pubsub_v1
+import logging
 
 # Set up credentials and Pub/Sub config
 os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "/home/varshi/data_engineering/credential.json"
@@ -69,7 +70,8 @@ for vehicle_id in vehicle_ids:
                 message_count += 1
                 
     except Exception as e:
-        pass
+        logging.error(f"Error fetching and publish{e}")
+
 
 for _ in futures.as_completed(futures_list):
     continue
